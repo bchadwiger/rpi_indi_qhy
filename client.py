@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Implements a simple PyIndi Client.
 
@@ -21,7 +23,7 @@ class IndiClient(PyIndi.BaseClient):
  
     device = None
  
-    def __init__(self, exposure, x0, y0, width, height, raw, override):
+    def __init__(self, exposure, x0, y0, width, height, raw, override, image_dir):
         super(IndiClient, self).__init__()
         self.logger = logging.getLogger('PyQtIndi.IndiClient')
         self.logger.info('creating an instance of PyQtIndi.IndiClient')
@@ -38,6 +40,7 @@ class IndiClient(PyIndi.BaseClient):
         self.height = height
         self.raw = raw
         self.override = override
+        self.image_dir = image_dir
 
     # called when a new device is detected
     def newDevice(self, d):
@@ -95,12 +98,12 @@ class IndiClient(PyIndi.BaseClient):
             out_basename = f"frame_{self.timer}_exp_{self.exposure}s"
 
         if self.raw:
-            out_filename = out_basename + '.fit'
+            out_filename = os.path.join(self.image_dir, out_basename + '.fit')
             with open(out_filename, 'wb') as f:
                 f.write(blobfile.getvalue())
         else:
-            out_filename = out_basename + '.png'
-            print("\n\n\nBEFORE\n\n\n")
+            out_filename = os.path.join(self.image_dir, out_basename + '.png')
+            print(f"\n\n\n{out_filename}\nBEFORE\n\n\n")
             img_fits = fits.getdata(blobfile) * ((2**8 - 1) / (2**16 - 1))
             print("\n\n\nAFTER\n\n\n")
             img_fits = img_fits.astype('uint8')
@@ -150,7 +153,8 @@ class IndiClient(PyIndi.BaseClient):
         self.sendNewNumber(exp)
 
 
-if __name__ == '__main__':
+# if __name__ == '__main__':
+if True:
 
     parser = argparse.ArgumentParser(
                       prog='Client.py',
@@ -162,7 +166,7 @@ if __name__ == '__main__':
     parser.add_argument('-H', '--height', type=int, default=2180, help='Frame height in pixels')
     parser.add_argument('-r', '--raw', type=bool, default=False, help='Whether to store raw image (as fits), or debayered image (as png) (default)', action=argparse.BooleanOptionalAction)
     parser.add_argument('-w', '--override', type=bool, default=False, help='Whether to use same filename for each new image (and thus override image with each new exposure). Otherwise, uses a unique filename based on timestamp, etc. (default).', action=argparse.BooleanOptionalAction)
-    parser.add_argument('-o', '--output_dir', type=str, default=f'{os.getcwd()}/images', action='store')
+    parser.add_argument('-o', '--output_dir', type=str, default='/home/allsky/rpi_indi_qhy/images', action='store')
     args = parser.parse_args()
     print(f'Using the following parameters: {args}')
 
@@ -174,7 +178,7 @@ if __name__ == '__main__':
     logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
     # instantiate the client
-    indiclient = IndiClient(args.exposure, args.x0, args.y0, args.width, args.height, args.raw, args.override)
+    indiclient = IndiClient(args.exposure, args.x0, args.y0, args.width, args.height, args.raw, args.override, image_dir)
     # set indi server localhost and port 7624
     indiclient.setServer("localhost",7624)
 
