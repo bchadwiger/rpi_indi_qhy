@@ -1,0 +1,5 @@
+. /home/allsky/ld_lib_path.sh
+sleep 1
+indiserver indi_qhy_ccd &
+sleep 5
+/usr/bin/python3 /home/allsky/rpi_indi_qhy/client.py 0.005

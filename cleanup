@@ -1,0 +1,2 @@
+rm images/frame*.fit
+rm images/frame*.png
