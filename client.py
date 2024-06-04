@@ -23,12 +23,14 @@ class IndiClient(PyIndi.BaseClient):
  
     device = None
  
-    def __init__(self, exposure, x0, y0, width, height, raw, override, image_dir):
+    def __init__(self, exposure, period, x0, y0, width, height, raw, override, image_dir):
         super(IndiClient, self).__init__()
         self.logger = logging.getLogger('PyQtIndi.IndiClient')
         self.logger.info('creating an instance of PyQtIndi.IndiClient')
         self.timer = None
+        self.last_img_time = None
         self.exposure = exposure
+        self.period = period
         if x0 % 2 != 0:
             warnings.warn(f'Left-most pixel (x0 = {x0}) is not divisible by 2! This can cause problems during debayering')
         if y0 % 2 != 0:
@@ -103,18 +105,24 @@ class IndiClient(PyIndi.BaseClient):
                 f.write(blobfile.getvalue())
         else:
             out_filename = os.path.join(self.image_dir, out_basename + '.png')
-            print(f"\n\n\n{out_filename}\nBEFORE\n\n\n")
             img_fits = fits.getdata(blobfile) * ((2**8 - 1) / (2**16 - 1))
-            print("\n\n\nAFTER\n\n\n")
             img_fits = img_fits.astype('uint8')
 
             # RGGB (used by QHY5III485) corresponds to OpenCV BR Bayer pattern,
             # see https://docs.opencv.org/3.4/de/d25/imgproc_color_conversions.html
             imgBGR = cv2.cvtColor(img_fits, cv2.COLOR_BAYER_BG2BGR)
+
             cv2.imwrite(out_filename, imgBGR)
 
         # start new exposure
-        self.takeExposure()
+        if self.last_img_time:
+            while time.time() - self.last_img_time < self.period:
+                time.sleep(0.1)
+            self.last_img_time = time.time()
+            self.takeExposure()
+        else:
+            self.last_img_time = time.time()
+            self.takeExposure()
 
     def newSwitch(self, svp):
         self.logger.info ("new Switch " + svp.name + " for device " + svp.device)
@@ -138,11 +146,11 @@ class IndiClient(PyIndi.BaseClient):
     def serverDisconnected(self, code):
         self.logger.info("Server disconnected (exit code = " + str(code) + "," + str(self.getHost()) + ":" + str(self.getPort()) + ")")
 
+    # def takeExposure(self, f=1.0):
     def takeExposure(self):
 
         # TODO: adapt exposure based on stats of previous image(s)
-        self.logger.info(">>>>>>>>")
-        
+        self.logger.info("<<<<<<<< Exposure >>>>>>>>>")
         #get current exposure time
         exp = self.device.getNumber("CCD_EXPOSURE")
         # set exposure time in seconds
@@ -153,13 +161,13 @@ class IndiClient(PyIndi.BaseClient):
         self.sendNewNumber(exp)
 
 
-# if __name__ == '__main__':
-if True:
+if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(
                       prog='Client.py',
                       description='Cyclicly records images with given parameters')
     parser.add_argument('exposure', type=float, help='Exposure in seconds')
+    parser.add_argument('-p', '--period', type=float, default=0, help='Period of image to record, ignored if < exposure, == exposure if omitted')
     parser.add_argument('-x0', type=int, default=880, help='Left-most pixel position') # theoretically 842 for center square)
     parser.add_argument('-y0', type=int, default=0, help='Top-most pixel position')
     parser.add_argument('-W', '--width', type=int, default=2180, help='Frame width in pixels')
@@ -177,8 +185,13 @@ if True:
 
     logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
+    if args.period < 1e-4:
+        period = args.exposure
+    else:
+        period = args.period
+
     # instantiate the client
-    indiclient = IndiClient(args.exposure, args.x0, args.y0, args.width, args.height, args.raw, args.override, image_dir)
+    indiclient = IndiClient(args.exposure, period, args.x0, args.y0, args.width, args.height, args.raw, args.override, image_dir)
     # set indi server localhost and port 7624
     indiclient.setServer("localhost",7624)
 

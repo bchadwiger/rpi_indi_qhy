@@ -2,4 +2,4 @@
 sleep 5
 indiserver indi_qhy_ccd &
 sleep 5
-/home/allsky/rpi_indi_qhy/client.py 0.005 &
+/home/allsky/rpi_indi_qhy/client.py 30 &
